@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100">
+  <defs>
+    <filter id="paperNoise">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.045" numOctaves="5" seed="18"/>
+      <feColorMatrix type="matrix" values="0.54 0 0 0 0.34 0 0.48 0 0 0.25 0 0 0.35 0 0.14 0 0 0 0.32 0"/>
+      <feBlend mode="multiply" in2="SourceGraphic"/>
+    </filter>
+    <linearGradient id="age" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8f5ec"/>
+      <stop offset="0.45" stop-color="#d9c39a"/>
+      <stop offset="1" stop-color="#8b5e3c"/>
+    </linearGradient>
+    <radialGradient id="vignette" cx="50%" cy="48%" r="72%">
+      <stop offset="0" stop-color="#fff7dd" stop-opacity="0.2"/>
+      <stop offset="0.68" stop-color="#8b5e3c" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#1f1309" stop-opacity="0.5"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1100" fill="url(#age)" filter="url(#paperNoise)"/>
+  <rect width="1600" height="1100" fill="url(#vignette)"/>
+  <g opacity="0.18" fill="none" stroke="#3b2818" stroke-linecap="round">
+    <path d="M210 185c168 18 322 10 512 2 206-9 414 9 658 28" stroke-width="3"/>
+    <path d="M180 265c226 12 435 4 655-10 156-10 340-2 574 18" stroke-width="2"/>
+    <path d="M234 355c170-20 356 14 520 4 242-16 388-12 640 12" stroke-width="3"/>
+    <path d="M196 455c206 22 446 18 672-2 160-14 332 0 514 20" stroke-width="2"/>
+    <path d="M240 562c164-8 320 6 496-6 240-17 448-9 612 14" stroke-width="3"/>
+    <path d="M190 675c202 10 396 16 604 0 236-18 414-5 590 11" stroke-width="2"/>
+    <path d="M230 792c280-18 486 20 704 0 178-16 296-4 456 16" stroke-width="3"/>
+    <path d="M202 906c190 18 396 12 612-8 214-20 372-4 548 14" stroke-width="2"/>
+  </g>
+  <g opacity="0.22" fill="#51351d">
+    <circle cx="246" cy="168" r="10"/>
+    <circle cx="1240" cy="214" r="14"/>
+    <circle cx="1380" cy="820" r="20"/>
+    <circle cx="116" cy="934" r="17"/>
+    <circle cx="770" cy="616" r="8"/>
+  </g>
+</svg>
