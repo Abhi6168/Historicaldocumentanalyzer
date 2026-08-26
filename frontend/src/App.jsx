@@ -14,6 +14,7 @@ import {
   Gauge,
   Image as ImageIcon,
   Layers3,
+  ListOrdered,
   Moon,
   ScanLine,
   Search,
@@ -31,7 +32,7 @@ const features = [
   {
     icon: BrainCircuit,
     title: "AI Handwriting Recognition",
-    text: "Extract handwritten text from aged manuscripts with a TrOCR handwriting pipeline."
+    text: "Extract handwritten text from aged manuscripts with multi-line text detection and TrOCR."
   },
   {
     icon: Wand2,
@@ -41,7 +42,7 @@ const features = [
   {
     icon: Gauge,
     title: "Confidence Intelligence",
-    text: "Review prediction confidence, processing time, and uncertain word highlights."
+    text: "Review prediction confidence, processing time, line count, and word highlights."
   },
   {
     icon: Download,
@@ -50,7 +51,17 @@ const features = [
   }
 ];
 
-const pipeline = ["Upload", "Image Enhancement", "Grayscale", "Noise Removal", "Thresholding", "Deskew", "TrOCR Model", "Recognized Text", "Confidence"];
+const pipeline = [
+  "Upload Document",
+  "Image Preprocessing",
+  "Adaptive Thresholding",
+  "Detect Text Lines",
+  "Crop & Order Lines",
+  "TrOCR Recognition",
+  "Combine Lines",
+  "Complete Text"
+];
+
 const demoTrend = [74, 79, 83, 86, 88, 91, 94];
 const demoUploads = [9, 15, 12, 24, 18, 31, 27];
 const pages = ["home", "about", "workspace", "pipeline", "dashboard", "history", "model"];
@@ -223,13 +234,13 @@ function Hero({ navigate }) {
       <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_.95fr]">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
           <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold/25 bg-white/5 px-4 py-2 text-sm text-gold backdrop-blur-xl">
-            <Sparkles size={16} /> AI OCR for manuscript preservation
+            <Sparkles size={16} /> Multi-Line AI OCR for manuscript preservation
           </p>
           <h1 className="font-cinzel text-5xl font-bold leading-tight text-slate-950 dark:text-paper md:text-7xl">
             Historical Document Analyzer
           </h1>
           <p className="mt-6 max-w-2xl text-lg font-medium leading-8 text-slate-700 dark:text-paper/82">
-            Transform centuries-old handwritten manuscripts into searchable digital text using Artificial Intelligence.
+            Transform multi-line historical documents and manuscripts into complete, structured digital text with automated text-line detection and TrOCR.
           </p>
           <div className="mt-9 flex flex-wrap gap-4">
             <button className="primary-button" onClick={() => navigate("workspace")}><Upload size={18} /> Analyze Document</button>
@@ -253,13 +264,13 @@ function Hero({ navigate }) {
 
 function About({ navigate, compact = false }) {
   return (
-    <Section id="about" eyebrow="About" title="OCR built for fragile records">
+    <Section id="about" eyebrow="About" title="Multi-line OCR built for fragile records">
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
         {[
-          ["What OCR is", "Optical Character Recognition converts images of writing into editable, searchable text."],
+          ["Multi-Line Pipeline", "Detects every individual handwritten line, orders them top-to-bottom, and recognizes full paragraphs."],
           ["Why it matters", "Historical preservation protects names, records, ledgers, letters, and civic memory from decay."],
-          ["How AI reads", "Vision transformers learn ink strokes, spacing, and word shapes instead of relying on rigid templates."],
-          ["Why IAM", "The IAM Handwriting Word Database is a standard benchmark for handwritten English word recognition."]
+          ["TrOCR Intelligence", "Vision transformers learn ink strokes and word shapes across individual segmented lines."],
+          ["Line Detection", "OpenCV adaptive thresholding and horizontal morphological profiling locate lines with high precision."]
         ].map(([title, text], index) => (
           <Reveal key={title} delay={index * 0.08}>
             <div className="glass-panel h-full p-6">
@@ -308,12 +319,19 @@ function Workspace({ setDocuments, setToast, setActiveDocument }) {
   async function processFile(file) {
     setProcessing(true);
     setProgress(8);
-    setCurrent({ filename: file.name, original_url: URL.createObjectURL(file), text: "", confidence: 0 });
+    setCurrent({
+      filename: file.name,
+      original_url: URL.createObjectURL(file),
+      text: "",
+      confidence: 0,
+      num_lines: 0,
+      lines: []
+    });
     try {
       const document = await uploadDocument(file, setProgress);
       setCurrent(document);
       setDocuments((items) => [document, ...items]);
-      setToast("OCR complete: prediction, confidence, and exports are ready");
+      setToast(`OCR complete: ${document.num_lines || 1} line(s) detected and recognized`);
     } catch (error) {
       setToast(error.message);
     } finally {
@@ -322,7 +340,7 @@ function Workspace({ setDocuments, setToast, setActiveDocument }) {
   }
 
   return (
-    <Section id="workspace" eyebrow="OCR Workspace" title="Upload, enhance, recognize, export">
+    <Section id="workspace" eyebrow="OCR Workspace" title="Upload, segment lines, recognize, export">
       <div className="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
         <div
           className={`upload-zone ${dragging ? "is-dragging" : ""}`}
@@ -350,7 +368,9 @@ function Workspace({ setDocuments, setToast, setActiveDocument }) {
               <Upload size={34} />
             </span>
             <strong className="mt-6 font-cinzel text-2xl">Drag and drop a manuscript</strong>
-            <span className="mt-3 max-w-md text-sm leading-6 text-slate-700 dark:text-paper/65">PNG, JPG, JPEG, and TIFF files are supported. Use Ctrl+U for quick upload.</span>
+            <span className="mt-3 max-w-md text-sm leading-6 text-slate-700 dark:text-paper/65">
+              Upload single-line or multi-line documents (PNG, JPG, JPEG, TIFF). Use Ctrl+U for quick upload.
+            </span>
           </div>
         </div>
         <div className="glass-panel min-h-[440px] p-5">
@@ -369,34 +389,132 @@ function Workspace({ setDocuments, setToast, setActiveDocument }) {
 }
 
 function Comparison({ document }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <ImagePanel label="Original Image" src={assetUrl(document.original_url)} />
-      <ImagePanel label="Enhanced Image" src={assetUrl(document.enhanced_url)} />
-    </div>
-  );
-}
+  const [activeTab, setActiveTab] = useState("annotated");
 
-function ImagePanel({ label, src }) {
+  const tabs = [
+    { id: "annotated", label: "Detected Lines", src: document.annotated_url || document.enhanced_url },
+    { id: "enhanced", label: "Enhanced Image", src: document.enhanced_url },
+    { id: "original", label: "Original Image", src: document.original_url }
+  ];
+
+  const currentView = tabs.find((t) => t.id === activeTab) || tabs[0];
+
   return (
-    <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-      <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[.22em] text-gold"><ImageIcon size={14} /> {label}</div>
-      {src ? <img className="h-52 w-full rounded-md object-contain paper-checker" src={src} alt={label} /> : <div className="h-52 rounded-md bg-white/5" />}
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-1.5 rounded-lg border border-white/10 bg-black/30 p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded px-3 py-1 text-xs font-semibold transition ${
+                activeTab === tab.id
+                  ? "bg-gold text-midnight shadow"
+                  : "text-paper/70 hover:text-paper"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {document.num_lines ? (
+          <span className="rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs font-bold text-gold">
+            {document.num_lines} {document.num_lines === 1 ? "Line Detected" : "Lines Detected"}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+        <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[.22em] text-gold">
+          <span className="flex items-center gap-2"><ImageIcon size={14} /> {currentView.label}</span>
+          {activeTab === "annotated" && document.num_lines ? (
+            <span className="text-[11px] text-paper/60 lowercase tracking-normal">showing bounding boxes</span>
+          ) : null}
+        </div>
+        {currentView.src ? (
+          <img
+            className="h-60 w-full rounded-md object-contain paper-checker"
+            src={assetUrl(currentView.src)}
+            alt={currentView.label}
+          />
+        ) : (
+          <div className="h-60 rounded-md bg-white/5" />
+        )}
+      </div>
     </div>
   );
 }
 
 function ResultPanel({ document, onOpen }) {
+  const [showLines, setShowLines] = useState(true);
+  const lines = document.lines || [];
+
   return (
     <div className="rounded-lg border border-gold/15 bg-white/[.04] p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[.22em] text-gold">Detected Text</p>
-          <h3 className="mt-2 text-xl font-semibold">{document.filename}</h3>
+          <div className="flex items-center gap-2">
+            <p className="text-xs uppercase tracking-[.22em] text-gold">OCR Analysis Results</p>
+            {document.num_lines ? (
+              <span className="rounded bg-gold/20 px-2 py-0.5 text-xs font-bold text-gold">
+                {document.num_lines} {document.num_lines === 1 ? "Line" : "Lines"}
+              </span>
+            ) : null}
+          </div>
+          <h3 className="mt-1 text-xl font-semibold">{document.filename}</h3>
         </div>
         <ConfidenceMeter value={document.confidence} />
       </div>
-      <p className="mt-5 rounded-md bg-paper p-4 font-serif text-lg leading-8 text-slate-900">{document.text}</p>
+
+      {/* Individual Line Results */}
+      {lines.length > 0 && (
+        <div className="mt-4 rounded-md border border-white/10 bg-black/25 p-3.5">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2 text-xs uppercase tracking-[.20em] text-gold">
+              <ListOrdered size={14} /> Line-by-Line Recognition ({lines.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowLines(!showLines)}
+              className="text-xs text-paper/60 hover:text-gold"
+            >
+              {showLines ? "Collapse" : "Expand"}
+            </button>
+          </div>
+          {showLines && (
+            <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+              {lines.map((line, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-start justify-between gap-3 rounded border border-white/5 bg-white/[.03] px-3 py-2 text-sm"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 rounded bg-gold/20 px-1.5 py-0.5 text-[11px] font-bold text-gold shrink-0">
+                      Line {line.line_id || idx + 1}
+                    </span>
+                    <span className="font-serif text-paper/95">{line.text || "—"}</span>
+                  </div>
+                  {line.confidence ? (
+                    <span className="text-xs text-gold/80 shrink-0 font-mono">
+                      {Math.round(line.confidence * 100)}%
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Complete Reconstructed Text */}
+      <div className="mt-4">
+        <p className="text-xs uppercase tracking-[.22em] text-gold">Complete Reconstructed Text</p>
+        <p className="mt-2 whitespace-pre-wrap rounded-md bg-paper p-4 font-serif text-lg leading-8 text-slate-900 shadow-inner">
+          {document.text || document.full_text}
+        </p>
+      </div>
+
       <div className="mt-5 flex flex-wrap gap-3">
         <a className="small-button" href={downloadUrl(document.id, "txt")}><FileText size={16} /> TXT</a>
         <a className="small-button" href={downloadUrl(document.id, "pdf")}><Download size={16} /> PDF</a>
@@ -477,15 +595,22 @@ function HistorySection({ documents, onOpen, onDelete, navigate }) {
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((document) => (
             <motion.article layout key={document.id} className="glass-panel p-4">
-              <img className="h-44 w-full rounded-md object-contain paper-checker" src={assetUrl(document.enhanced_url || document.original_url)} alt={document.filename} />
+              <img className="h-44 w-full rounded-md object-contain paper-checker" src={assetUrl(document.annotated_url || document.enhanced_url || document.original_url)} alt={document.filename} />
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="line-clamp-1 font-semibold">{document.filename}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="line-clamp-1 font-semibold">{document.filename}</h3>
+                    {document.num_lines ? (
+                      <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] font-bold text-gold shrink-0">
+                        {document.num_lines}L
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-xs text-slate-600 dark:text-paper/50">{new Date(document.created_at).toLocaleString()}</p>
                 </div>
                 <ConfidenceMeter value={document.confidence} compact />
               </div>
-              <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-700 dark:text-paper/65">{document.text}</p>
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-700 dark:text-paper/65 whitespace-pre-line">{document.text}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button className="icon-text" onClick={() => onOpen(document)}><Eye size={15} /> Open</button>
                 <a className="icon-text" href={downloadUrl(document.id, "txt")}><Download size={15} /> Download</a>
@@ -503,8 +628,13 @@ function AdvancedViewer({ document, onClose }) {
   const [zoom, setZoom] = useState(1);
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
-  const [after, setAfter] = useState(true);
-  const src = assetUrl(after ? document.enhanced_url : document.original_url);
+  const [viewMode, setViewMode] = useState("annotated");
+
+  const getImageSrc = () => {
+    if (viewMode === "annotated") return assetUrl(document.annotated_url || document.enhanced_url);
+    if (viewMode === "enhanced") return assetUrl(document.enhanced_url);
+    return assetUrl(document.original_url);
+  };
 
   return (
     <motion.div className="fixed inset-0 z-50 bg-midnight/88 p-4 backdrop-blur-xl" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -519,7 +649,7 @@ function AdvancedViewer({ document, onClose }) {
         <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[1fr_330px]">
           <div className="viewer-canvas">
             <img
-              src={src}
+              src={getImageSrc()}
               alt={document.filename}
               style={{ transform: `scale(${zoom})`, filter: `brightness(${brightness}%) contrast(${contrast}%)` }}
             />
@@ -532,10 +662,44 @@ function AdvancedViewer({ document, onClose }) {
             </div>
           </div>
           <aside className="space-y-4 overflow-auto">
-            <Toggle label="Before vs After" value={after} onChange={setAfter} />
+            <div className="rounded-lg border border-white/10 bg-white/[.04] p-3">
+              <p className="mb-2 text-xs uppercase tracking-[.22em] text-gold">Image View</p>
+              <div className="grid grid-cols-3 gap-1">
+                {["annotated", "enhanced", "original"].map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setViewMode(mode)}
+                    className={`rounded py-1.5 text-xs font-semibold capitalize transition ${
+                      viewMode === mode ? "bg-gold text-midnight" : "text-paper/70 hover:text-paper"
+                    }`}
+                  >
+                    {mode === "annotated" ? "Lines" : mode}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Slider label="Zoom" value={zoom} min={0.7} max={2.2} step={0.1} onChange={setZoom} />
             <Slider label="Brightness" value={brightness} min={60} max={150} step={5} onChange={setBrightness} />
             <Slider label="Contrast" value={contrast} min={60} max={170} step={5} onChange={setContrast} />
+
+            {document.lines && document.lines.length > 0 && (
+              <div className="rounded-lg border border-white/10 bg-white/[.04] p-4">
+                <p className="mb-3 text-xs uppercase tracking-[.22em] text-gold">
+                  Detected Lines ({document.lines.length})
+                </p>
+                <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
+                  {document.lines.map((l, i) => (
+                    <div key={i} className="rounded bg-black/30 p-2 text-xs">
+                      <span className="font-bold text-gold">L{l.line_id || i + 1}: </span>
+                      <span className="text-paper/90">{l.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-lg border border-white/10 bg-white/[.04] p-4">
               <p className="mb-3 text-xs uppercase tracking-[.22em] text-gold">Detected Words</p>
               <div className="flex flex-wrap gap-2">
@@ -551,12 +715,12 @@ function AdvancedViewer({ document, onClose }) {
 
 function ModelDetails({ navigate }) {
   return (
-    <Section id="model" eyebrow="AI Model Details" title="TrOCR handwriting intelligence">
+    <Section id="model" eyebrow="AI Model Details" title="Multi-Line TrOCR handwriting intelligence">
       <div className="grid gap-5 lg:grid-cols-3">
         {[
-          ["Dataset", "IAM Handwriting Word Database: segmented handwritten English words used for OCR training and evaluation."],
-          ["Preprocessing", "Resize, grayscale, normalization, thresholding, noise removal, deskew, and contrast enhancement."],
-          ["Model Output", "TrOCR combines a Vision Transformer encoder with a Transformer decoder to produce predicted text, confidence, and processing time."]
+          ["Line Detection", "OpenCV morphological kernels and adaptive thresholding segment multi-line manuscripts into individual text lines."],
+          ["Preprocessing", "Grayscale conversion, noise filtering, contrast enhancement, and bounding-box padding for ascenders and descenders."],
+          ["TrOCR Recognition", "Vision Transformer encoder with Transformer decoder recognizes each line and combines them into complete text."]
         ].map(([title, text]) => (
           <div key={title} className="glass-panel p-6">
             <Layers3 className="mb-5 text-gold" />
@@ -601,7 +765,7 @@ function LoadingState({ progress }) {
       <div className="scanner-card">
         <ScanLine className="text-gold" size={34} />
         <h3 className="mt-4 font-cinzel text-2xl">AI OCR in progress</h3>
-        <p className="mt-2 text-sm text-paper/60">Enhancing ink, aligning page geometry, and decoding handwritten words.</p>
+        <p className="mt-2 text-sm text-paper/60">Detecting text lines, ordering geometry, and decoding handwriting with TrOCR.</p>
         <div className="mt-7 h-2 overflow-hidden rounded-full bg-white/10">
           <motion.div className="h-full bg-gold" animate={{ width: `${progress}%` }} />
         </div>

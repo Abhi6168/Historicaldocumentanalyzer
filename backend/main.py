@@ -1,13 +1,25 @@
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from database import init_db
-from routes import router
+_BACKEND_DIR = Path(__file__).resolve().parent
+_ROOT_DIR = _BACKEND_DIR.parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
 
-ROOT = Path(__file__).resolve().parent.parent
+try:
+    from database import init_db
+    from routes import router
+except ImportError:
+    from backend.database import init_db
+    from backend.routes import router
+
+ROOT = _ROOT_DIR
 UPLOAD_DIR = ROOT / "uploads"
 HISTORY_DIR = ROOT / "history"
 OUTPUT_DIR = ROOT / "outputs"

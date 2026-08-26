@@ -46,6 +46,9 @@ export function assetUrl(path) {
 function normalizeDocument(document) {
   return {
     ...document,
+    num_lines: Number(document.num_lines || document.lines?.length || 1),
+    lines: document.lines || [],
+    annotated_url: document.annotated_url || document.enhanced_url || document.original_url,
     confidence: Number(document.confidence || 0),
     processing_time: Number(document.processing_time || 0),
     characters: Number(document.characters || document.text?.length || 0),
